@@ -415,3 +415,166 @@ Esta seção aborda a configuração do n8n e da Evolution API para o envio de n
        ports:
          - 
 
+
+8080:8080 # Porta da API
+       volumes:
+         - ./data:/app/data # Persistência de dados
+       environment:
+         - SERVER_PORT=8080
+         - AUTHENTICATION_TYPE=apikey
+         - AUTHENTICATION_API_KEY=your-evolution-api-key # **MUDE ESTA CHAVE!**
+         - WEBHOOK_GLOBAL_ENABLED=true
+         - WEBHOOK_GLOBAL_URL=http://host.docker.internal:5678/webhook/whatsapp-status # Aponta para o n8n
+         - QRCODE_LIMIT=30
+         - DATABASE_ENABLED=false # Pode ser true se usar MongoDB externo
+         # - DATABASE_CONNECTION_URI=mongodb://mongo:27017/evolution # Se usar MongoDB
+
+     # Opcional: MongoDB para persistência de dados da Evolution API
+     # mongo:
+     #   image: mongo:latest
+     #   container_name: mongo_db
+     #   restart: always
+     #   volumes:
+     #     - ./mongo-data:/data/db
+     #   ports:
+     #     - "27017:27017"
+
+   networks:
+     default:
+       name: evolution-network
+   ```
+   **Atenção:**
+   - Altere `your-evolution-api-key` para uma chave forte e segura.
+   - `http://host.docker.internal:5678` é um endereço especial no Docker Desktop para Windows que permite que um contêiner acesse o host. Certifique-se de que o n8n estará rodando na porta 5678 do seu Windows Server.
+   - Se você precisar de persistência de dados para a Evolution API (histórico de mensagens, etc.), descomente a seção `mongo` e configure `DATABASE_ENABLED=true` e `DATABASE_CONNECTION_URI` no serviço `evolution-api`.
+
+3. **Inicie a Evolution API:**
+   - Abra o Prompt de Comando ou PowerShell no diretório `C:\evolution-api`.
+   - Execute:
+     ```bash
+     docker-compose up -d
+     ```
+   - Verifique se o contêiner está rodando:
+     ```bash
+     docker ps
+     ```
+
+4. **Crie uma instância do WhatsApp:**
+   - Após a Evolution API iniciar, você precisará criar uma instância para conectar seu WhatsApp. Substitua `your-evolution-api-key` pela sua chave.
+   ```bash
+   curl -X POST http://localhost:8080/instance/create \
+     -H "Content-Type: application/json" \
+     -H "apikey: your-evolution-api-key" \
+     -d "{\"instanceName\": \"instance1\", \"qrcode\": true, \"webhook\": {\"url\": \"http://host.docker.internal:5678/webhook/whatsapp-status\", \"events\": [\"messages\", \"connection\"]}}"
+   ```
+   - Você receberá um QR Code no console ou nos logs da Evolution API. Escaneie-o com seu celular para conectar o WhatsApp.
+
+### 8.3. Configurar o n8n com Docker Compose
+
+1. **Crie um diretório para o n8n:**
+   ```bash
+   mkdir C:\n8n
+   cd C:\n8n
+   ```
+2. **Crie o arquivo `docker-compose.yml`:** Salve o seguinte conteúdo como `docker-compose.yml` dentro da pasta `C:\n8n`:
+   ```yaml
+   version: '3.8'
+
+   services:
+     n8n:
+       image: n8n/n8n
+       container_name: n8n
+       restart: always
+       ports:
+         - 5678:5678 # Porta da interface web do n8n
+       volumes:
+         - ./data:/home/node/.n8n # Persistência de dados do n8n
+       environment:
+         - N8N_HOST=localhost
+         - N8N_PORT=5678
+         - N8N_PROTOCOL=http
+         - WEBHOOK_URL=http://host.docker.internal:5678/webhook/
+         - GENERIC_TIMEZONE=America/Sao_Paulo # Ou seu fuso horário
+   ```
+   **Atenção:**
+   - `WEBHOOK_URL=http://host.docker.internal:5678/webhook/` é crucial para que o n8n possa gerar URLs de webhook acessíveis de dentro do Docker e do host.
+
+3. **Inicie o n8n:**
+   - Abra o Prompt de Comando ou PowerShell no diretório `C:\n8n`.
+   - Execute:
+     ```bash
+     docker-compose up -d
+     ```
+   - Verifique se o contêiner está rodando:
+     ```bash
+     docker ps
+     ```
+
+4. **Acesse a interface web do n8n:** Abra seu navegador e vá para `http://localhost:5678`.
+
+5. **Crie o Workflow de WhatsApp no n8n:**
+   - No n8n, crie um novo workflow.
+   - Adicione um nó **Webhook** como trigger.
+     - **Webhook URL:** Anote a URL gerada (ex: `http://localhost:5678/webhook/sua-webhook-id`). Você usará isso no backend do Flask.
+     - **HTTP Method:** `POST`
+     - **Response Mode:** `Respond to Webhook`
+   - Adicione um nó **HTTP Request** (para a Evolution API).
+     - Conecte-o ao nó Webhook.
+     - **Method:** `POST`
+     - **URL:** `http://host.docker.internal:8080/message/sendText/instance1` (substitua `instance1` se você usou outro nome para a instância do WhatsApp).
+     - **Authentication:** `Generic Credential Type`
+     - **Credential Type:** `HTTP Header Auth`
+     - **Header Name:** `apikey`
+     - **Header Value:** Sua `your-evolution-api-key` (a mesma que você definiu no `docker-compose.yml` da Evolution API).
+     - **Body Parameters:**
+       - `number`: `={{$json.phone}}`
+       - `text`: `={{$json.message}}`
+   - Ative o workflow.
+
+### 8.4. Configurar o Backend Flask para Notificações
+
+No arquivo `.env` do seu projeto backend (`agendamento-online`), atualize as variáveis para apontar para o n8n e a Evolution API:
+
+```env
+# n8n Configuration
+N8N_WEBHOOK_URL=http://localhost:5678/webhook/sua-webhook-id # Use a URL gerada pelo n8n
+
+# Evolution API Configuration
+EVOLUTION_API_URL=http://localhost:8080
+EVOLUTION_API_KEY=your-evolution-api-key
+EVOLUTION_INSTANCE=instance1
+
+# Notification Settings
+NOTIFICATIONS_ENABLED=true
+SEND_CONFIRMATION=true
+SEND_REMINDERS=true
+REMINDER_HOURS_BEFORE=24
+```
+
+Substitua `sua-webhook-id` e `your-evolution-api-key` pelos valores corretos.
+
+## 9. Teste Final e Considerações de Produção
+
+Após todas as instalações e configurações, é hora de testar o sistema completo.
+
+1. **Inicie o Backend (Gunicorn):** Certifique-se de que o serviço Gunicorn está rodando (se você configurou com NSSM, ele deve iniciar automaticamente).
+2. **Inicie o Nginx:** Certifique-se de que o serviço Nginx está rodando (se você configurou com NSSM, ele deve iniciar automaticamente).
+3. **Inicie a Evolution API:** Verifique se o contêiner Docker da Evolution API está ativo (`docker ps`).
+4. **Inicie o n8n:** Verifique se o contêiner Docker do n8n está ativo (`docker ps`).
+5. **Acesse o Frontend:** Abra seu navegador e vá para o endereço do seu servidor (ex: `http://seu_dominio_ou_ip`).
+6. **Realize um agendamento:** Crie um profissional, configure serviços e horários, e então faça um agendamento como cliente.
+7. **Verifique as notificações:** Confirme se as mensagens de WhatsApp estão sendo enviadas e recebidas.
+8. **Monitore os logs:** Verifique os logs do Gunicorn, Nginx, Evolution API e n8n para identificar quaisquer erros.
+
+### 9.1. Considerações Adicionais para Produção
+
+- **HTTPS:** Para segurança, é **altamente recomendado** configurar HTTPS no Nginx usando certificados SSL/TLS (ex: Let's Encrypt). Isso criptografará a comunicação entre o cliente e o servidor.
+- **Firewall:** Configure o firewall do Windows e de rede para permitir apenas o tráfego necessário (portas 80 e 443 para acesso público, e as portas internas para comunicação entre os serviços).
+- **Backup:** Implemente uma rotina de backup regular para o banco de dados PostgreSQL e para os volumes de dados do n8n e Evolution API.
+- **Monitoramento:** Utilize ferramentas de monitoramento para acompanhar a saúde do servidor, uso de recursos e performance da aplicação.
+- **Atualizações:** Mantenha o sistema operacional, Python, Node.js e todas as dependências atualizadas para garantir segurança e performance.
+- **Segurança do Docker:** Siga as melhores práticas de segurança para contêineres Docker.
+- **Variáveis de Ambiente:** Não armazene informações sensíveis (chaves de API, senhas) diretamente no código. Use variáveis de ambiente ou um sistema de gerenciamento de segredos.
+
+Este guia fornece uma base sólida para a implantação do seu sistema de agendamento em um ambiente de produção no Windows Server 2022. Lembre-se de adaptar os caminhos e configurações conforme a sua infraestrutura específica.
+
