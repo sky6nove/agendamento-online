@@ -143,7 +143,7 @@ configure_postgresql() {
         error "A senha do banco de dados não pode ser vazia."
     fi
 
-    sudo -i -u postgres psql -c "CREATE USER $db_user WITH PASSWORD 	'$db_password'	;"
+    sudo -i -u postgres psql -c "CREATE USER $db_user WITH PASSWORD '${db_password}';"
     check_command "criar usuário do banco de dados"
     sudo -i -u postgres psql -c "CREATE DATABASE $db_name OWNER $db_user;"
     check_command "criar banco de dados"
@@ -400,5 +400,3 @@ main() {
 
 # Executa a função principal
 main
-
-
