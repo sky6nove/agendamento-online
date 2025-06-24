@@ -115,7 +115,7 @@ setup_backend() {
     
     info "Clonando o repositório do backend..."
     # Substitua pela URL do seu repositório do backend
-    git clone https://github.com/seu-usuario/seu-repo-backend.git "$BACKEND_DIR"
+    git clone https://github.com/sky6nove/agendamento-online.git "$BACKEND_DIR"
     check_command "clonar repositório do backend"
 
     cd "$BACKEND_DIR"
