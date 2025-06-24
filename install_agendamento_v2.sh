@@ -81,8 +81,6 @@ confirm() {
 APP_DIR="/var/www/agendamento-online"
 BACKEND_DIR="${APP_DIR}/backend"
 FRONTEND_DIR="${APP_DIR}/frontend"
-N8N_DIR="/opt/n8n"
-EVOLUTION_API_DIR="/opt/evolution-api"
 
 # --- Funções de Instalação ---
 
@@ -90,7 +88,7 @@ install_prerequisites() {
     info "Atualizando o sistema e instalando pré-requisitos..."
     sudo apt update && sudo apt upgrade -y
     check_command "apt update e upgrade"
-    sudo apt install -y software-properties-common curl gnupg lsb-release
+    sudo apt install -y software-properties-common curl git
     check_command "instalação de pré-requisitos"
     success "Pré-requisitos instalados com sucesso."
 }
@@ -114,8 +112,7 @@ setup_backend() {
     check_command "alterar proprietário do diretório do backend"
     
     info "Clonando o repositório do backend..."
-    # Substitua pela URL do seu repositório do backend
-    git clone https://github.com/seu-usuario/seu-repo-backend.git "$BACKEND_DIR"
+    git clone https://github.com/sky6nove/agendamento-online.git "$BACKEND_DIR"
     check_command "clonar repositório do backend"
 
     cd "$BACKEND_DIR"
@@ -146,7 +143,7 @@ configure_postgresql() {
         error "A senha do banco de dados não pode ser vazia."
     fi
 
-    sudo -i -u postgres psql -c "CREATE USER $db_user WITH PASSWORD '$db_password';"
+    sudo -i -u postgres psql -c "CREATE USER $db_user WITH PASSWORD 	'$db_password'	;"
     check_command "criar usuário do banco de dados"
     sudo -i -u postgres psql -c "CREATE DATABASE $db_name OWNER $db_user;"
     check_command "criar banco de dados"
@@ -271,8 +268,7 @@ setup_frontend() {
     check_command "alterar proprietário do diretório do frontend"
 
     info "Clonando o repositório do frontend..."
-    # Substitua pela URL do seu repositório do frontend
-    git clone https://github.com/seu-usuario/seu-repo-frontend.git "$FRONTEND_DIR"
+    git clone https://github.com/sky6nove/agendamento-online.git "$FRONTEND_DIR"
     check_command "clonar repositório do frontend"
 
     cd "$FRONTEND_DIR"
@@ -287,105 +283,6 @@ setup_frontend() {
     pnpm run build
     check_command "construir frontend para produção"
     success "Frontend configurado e construído com sucesso."
-}
-
-install_docker() {
-    info "Instalando Docker e Docker Compose..."
-    sudo apt update
-    sudo apt install -y ca-certificates curl gnupg lsb-release
-    sudo mkdir -p /etc/apt/keyrings
-    curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo gpg --dearmor -o /etc/apt/keyrings/docker.gpg
-    echo \
-      "deb [arch=\$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu \
-      \$(lsb_release -cs) stable" | sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
-    sudo apt update
-    sudo apt install -y docker-ce docker-ce-cli containerd.io docker-compose-plugin
-    check_command "instalar Docker e Docker Compose"
-
-    sudo usermod -aG docker "$SUDO_USER"
-    success "Docker e Docker Compose instalados com sucesso. Por favor, faça logout e login novamente para que as permissões do Docker entrem em vigor."
-}
-
-configure_evolution_api() {
-    info "Configurando Evolution API com Docker Compose..."
-    sudo mkdir -p "$EVOLUTION_API_DIR"
-    sudo chown -R "$SUDO_USER":"$SUDO_USER" "$EVOLUTION_API_DIR"
-    cd "$EVOLUTION_API_DIR"
-
-    local evolution_api_key
-    get_input "Digite a chave de API para a Evolution API" "" evolution_api_key
-    if [ -z "$evolution_api_key" ]; then
-        error "A chave de API da Evolution API não pode ser vazia."
-    fi
-
-    local n8n_webhook_url_for_evolution
-    get_input "Digite a URL do webhook do n8n para a Evolution API (ex: http://seu_dominio_ou_ip:5678/webhook/whatsapp-status)" "http://localhost:5678/webhook/whatsapp-status" n8n_webhook_url_for_evolution
-
-    sudo bash -c "cat > docker-compose.yml <<EOF
-version: '3.8'
-
-services:
-  evolution-api:
-    image: evolutionapi/evolution-api:latest
-    container_name: evolution-api
-    restart: always
-    ports:
-      - 8080:8080 # Porta da API
-    volumes:
-      - ./data:/app/data # Persistência de dados
-    environment:
-      - SERVER_PORT=8080
-      - AUTHENTICATION_TYPE=apikey
-      - AUTHENTICATION_API_KEY=${evolution_api_key}
-      - WEBHOOK_GLOBAL_ENABLED=true
-      - WEBHOOK_GLOBAL_URL=${n8n_webhook_url_for_evolution}
-      - QRCODE_LIMIT=30
-      - DATABASE_ENABLED=false # Pode ser true se usar MongoDB externo
-
-networks:
-  default:
-    name: evolution-network
-EOF"
-    check_command "criar docker-compose.yml para Evolution API"
-
-    docker compose up -d
-    check_command "iniciar Evolution API com Docker Compose"
-    success "Evolution API configurada e iniciada com sucesso."
-}
-
-configure_n8n() {
-    info "Configurando n8n com Docker Compose..."
-    sudo mkdir -p "$N8N_DIR"
-    sudo chown -R "$SUDO_USER":"$SUDO_USER" "$N8N_DIR"
-    cd "$N8N_DIR"
-
-    local n8n_host_url
-    get_input "Digite a URL de acesso ao n8n (ex: http://seu_dominio_ou_ip:5678)" "http://localhost:5678" n8n_host_url
-
-    sudo bash -c "cat > docker-compose.yml <<EOF
-version: '3.8'
-
-services:
-  n8n:
-    image: n8n/n8n
-    container_name: n8n
-    restart: always
-    ports:
-      - 5678:5678 # Porta da interface web do n8n
-    volumes:
-      - ./data:/home/node/.n8n # Persistência de dados do n8n
-    environment:
-      - N8N_HOST=${n8n_host_url}
-      - N8N_PORT=5678
-      - N8N_PROTOCOL=http
-      - WEBHOOK_URL=${n8n_host_url}/webhook/
-      - GENERIC_TIMEZONE=America/Sao_Paulo # Ou seu fuso horário
-EOF"
-    check_command "criar docker-compose.yml para n8n"
-
-    docker compose up -d
-    check_command "iniciar n8n com Docker Compose"
-    success "n8n configurado e iniciado com sucesso."
 }
 
 create_backend_env_file() {
@@ -417,23 +314,10 @@ create_backend_env_file() {
         get_input "Digite o nome do banco de dados externo" "" db_name
     fi
 
-    confirm "O n8n será instalado neste servidor?" && n8n_type="local" || n8n_type="external"
-    if [ "$n8n_type" == "local" ]; then
-        n8n_webhook_url="http://localhost:5678/webhook/sua-webhook-id" # Placeholder, usuário deve ajustar após configurar o workflow
-    else
-        get_input "Digite a URL completa do webhook do n8n externo (ex: http://seu_dominio_ou_ip:5678/webhook/sua-webhook-id)" "" n8n_webhook_url
-    fi
-
-    confirm "A Evolution API será instalada neste servidor?" && evolution_type="local" || evolution_type="external"
-    if [ "$evolution_type" == "local" ]; then
-        evolution_api_url="http://localhost:8080"
-        get_input "Digite a chave de API da Evolution API (a mesma usada na configuração do Docker Compose)" "" evolution_api_key
-        evolution_instance="instance1"
-    else
-        get_input "Digite a URL da Evolution API externa (ex: http://seu_dominio_ou_ip:8080)" "" evolution_api_url
-        get_input "Digite a chave de API da Evolution API externa" "" evolution_api_key
-        get_input "Digite o nome da instância da Evolution API externa (ex: instance1)" "instance1" evolution_instance
-    fi
+    get_input "Digite a URL completa do webhook do n8n externo (ex: https://n8n.skayy.shop/webhook/sua-webhook-id)" "https://n8n.skayy.shop/webhook/sua-webhook-id" n8n_webhook_url
+    get_input "Digite a URL da Evolution API externa (ex: https://api.skayy.shop)" "https://api.skayy.shop" evolution_api_url
+    get_input "Digite a chave de API da Evolution API externa" "" evolution_api_key
+    get_input "Digite o nome da instância da Evolution API externa (ex: instance1)" "instance1" evolution_instance
 
     sudo bash -c "cat > ${BACKEND_DIR}/.env <<EOF
 # Configurações do Banco de Dados
@@ -504,23 +388,6 @@ main() {
     configure_ufw
     install_nodejs_pnpm
     setup_frontend
-
-    if confirm "Deseja instalar o Docker e Docker Compose para n8n/Evolution API neste servidor?"; then
-        install_docker
-        warn "Por favor, faça logout e login novamente para que as permissões do Docker entrem em vigor. Em seguida, execute o script novamente para continuar a configuração do n8n e Evolution API."
-        exit 0 # Sair para o usuário fazer logout/login
-    else
-        warn "Você optou por não instalar Docker localmente. Certifique-se de que n8n e Evolution API externos estão acessíveis e configurados."
-    fi
-
-    # Estas funções serão chamadas após o usuário fazer logout/login e reexecutar o script
-    # if confirm "Deseja configurar a Evolution API neste servidor?"; then
-    #     configure_evolution_api
-    # fi
-
-    # if confirm "Deseja configurar o n8n neste servidor?"; then
-    #     configure_n8n
-    # fi
 
     create_backend_env_file
     initialize_database
