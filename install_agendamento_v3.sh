@@ -137,10 +137,7 @@ configure_postgresql() {
     local db_name="agendamento_db"
     local db_password="123456789"
 
-    get_input "Digite a senha para o usuário do banco de dados ($db_user)" "" db_password
-    if [ -z "$db_password" ]; then
-        error "A senha do banco de dados não pode ser vazia."
-    fi    # Cria o usuário do banco de dados
+          # Cria o usuário do banco de dados
     sudo -i -u postgres bash -c "PGPASSWORD=\"${db_password}\" psql -c \"CREATE USER $db_user WITH PASSWORD E\\\"${db_password}\\\";\""
     check_command "criar usuário do banco de dados"  # Cria o banco de dados e define o proprietário
     sudo -i -u postgres psql -c "CREATE DATABASE $db_name OWNER $db_user;"
