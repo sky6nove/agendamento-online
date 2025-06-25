@@ -135,7 +135,7 @@ configure_postgresql() {
     info "Configurando o banco de dados PostgreSQL..."
     local db_user="agendamento_user"
     local db_name="agendamento_db"
-    local db_password
+    local db_password="123456789"
 
     get_input "Digite a senha para o usuário do banco de dados ($db_user)" "" db_password
     if [ -z "$db_password" ]; then
