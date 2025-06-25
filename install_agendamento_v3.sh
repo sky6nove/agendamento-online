@@ -304,11 +304,11 @@ create_backend_env_file() {
         get_input "Digite a senha do usuário do banco de dados ($db_user)" "" db_password
         db_name="agendamento_db"
     else
-        get_input "Digite o host do banco de dados externo" "" db_host
-        get_input "Digite a porta do banco de dados externo" "5432" db_port
-        get_input "Digite o usuário do banco de dados externo" "" db_user
-        get_input "Digite a senha do usuário do banco de dados externo" "" db_password
-        get_input "Digite o nome do banco de dados externo" "" db_name
+        get_input "Digite o host do banco de dados externo" "aws-0-sa-east-1.pooler.supabase.com" db_host
+        get_input "Digite a porta do banco de dados externo" "6543" db_port
+        get_input "Digite o usuário do banco de dados externo" "postgres.atqlktmwklttwtybvhlt" db_user
+        get_input "Digite a senha do usuário do banco de dados externo" "D@2km240769" db_password
+        get_input "Digite o nome do banco de dados externo" "postgres" db_name
     fi
 
     get_input "Digite a URL completa do webhook do n8n externo (ex: https://n8n.skayy.shop/webhook/sua-webhook-id)" "https://n8n.skayy.shop/webhook/sua-webhook-id" n8n_webhook_url
